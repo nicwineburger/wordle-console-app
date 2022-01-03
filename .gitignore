@@ -1,6 +1,17 @@
 # Prerequisites
 *.d
 
+# VS Code
+/.vscode
+
+# Debug
+/obj
+/bin
+
+# Etc
+*.png
+*.csv
+
 # Compiled Object files
 *.slo
 *.lo
