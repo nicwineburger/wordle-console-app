@@ -1,6 +1,6 @@
 # Wordle Console App
 
-This is a very basic console application to do some Wordle things
+This is a very basic console application to do some Wordle things. Runs on .NET 5 using `dotnet run`
 
 This application can currently 
 - Play Wordle
