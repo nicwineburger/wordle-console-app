@@ -12,7 +12,7 @@ namespace Wordle {
 
     public class Program {
         private static readonly string SOL_PATH = "/Users/nicgw/Desktop/repos/wordle-algo/sol-word-list.txt";
-        private static readonly string FULL_WORD_LIST_PATH = "/Users/nicgw/Desktop/repos/wordle-algo/complete-word-list.txt";
+        private static readonly string ACCEPTABLE_WORD_PATH = "/Users/nicgw/Desktop/repos/wordle-algo/complete-word-list.txt";
         private static readonly string OUTPUT_PATH = "/Users/nicgw/Desktop/repos/wordle-algo/data.csv";
         private static int NUM_RUNS;
         private static int RUN_MODE;
@@ -27,6 +27,9 @@ namespace Wordle {
 
             Console.WriteLine($"Starting...\nImporting Word Data...");
             List<string> solutionList = ImportWords(SOL_PATH);
+            //List<string> acceptableWords = ImportWords(FULL_WORD_LIST_PATH);
+
+            //List<string> solutionList = solutionWords.Concat(acceptableWords).ToList();
 
             
             while(true) {
@@ -35,7 +38,8 @@ namespace Wordle {
                                   "2: Batch Run\n" +
                                   "3: Play Game\n" +
                                   "4: Solver\n" +
-                                  "5: Exit");
+                                  "5: Combined Batch Run\n" + 
+                                  "6: Exit");
                 RUN_MODE = Convert.ToInt32(Console.ReadLine());    
 
                 if (RUN_MODE == 1) {
@@ -51,6 +55,9 @@ namespace Wordle {
                     RunSolver(solutionList);
                 }
                 else if (RUN_MODE == 5) {
+                    CombinedRun();
+                }
+                else if (RUN_MODE == 6) {
                     break;
                 }
                 else {
@@ -59,6 +66,33 @@ namespace Wordle {
             }
         }
 
+        private static void CombinedRun() {
+            // Just reimport the data, who cares
+            Console.WriteLine($"Running all three lists at once (this might take a while)");
+            Console.WriteLine($"How many runs?");
+            NUM_RUNS = Convert.ToInt32(Console.ReadLine());
+
+            List<string> solutionWords = ImportWords(SOL_PATH);
+            List<string> acceptableWords = ImportWords(ACCEPTABLE_WORD_PATH);
+            List<string> combinedWords = solutionWords.Concat(acceptableWords).ToList();
+
+            List<List<string>>  allWordsList = new List<List<string>>();
+            allWordsList.Add(solutionWords);
+            allWordsList.Add(acceptableWords); 
+            allWordsList.Add(combinedWords);
+            
+            List<List<RunData>> runsList = new List<List<RunData>>();
+            foreach (List<string> wordList in allWordsList) {
+                List<RunData> runs = GetRunData(wordList);
+                runsList.Add(runs);
+            }
+
+
+            CreateRunPercentagePlot(runsList[0], runsList);
+
+
+
+        }
         private static void SingleRun(List<string> solutionList) {
            RunData run = new RunData();
            Run(solutionList, out run); 
@@ -181,12 +215,100 @@ namespace Wordle {
             Console.WriteLine($"\nTook {sw.ElapsedMilliseconds} ms");
 
             //CreateCSV(dataList, cmaData);
-            Console.WriteLine("CMA Gathered\nStarting plot...");
-            CreatePlot(dataList, cmaData);
-            Console.WriteLine($"Plot done.");
+            CreateRunPercentagePlot(dataList);
+            //Console.WriteLine("CMA Gathered\nStarting plot...");
+            //CreateCMAPlot(dataList, cmaData);
+            //Console.WriteLine($"Plot done.");
         }
 
-        private static void CreatePlot(List<RunData> runs, List<double> cmaData) {
+        private static void CreateRunPercentagePlot(List<RunData> runs, List<List<RunData>> runsList=null ) {
+            
+            if (runsList == null) {
+                runsList.Add(runs);
+            }
+
+            List<ScottPlot.Plot> plots = DoPlotData(runsList);
+
+            var pltDist = plots[0];
+            var pltPerc = plots[1];
+
+
+
+            pltDist.Title($"Number of guesses vs number of runs with that # of guesses");
+            pltDist.XLabel($"Number of guesses");
+            pltDist.YLabel($"Number of runs with that number of guesses");
+            pltDist.SaveFig($"guesses-bucketed-{runs.Count}-runs.png");
+
+            pltPerc.Title($"Percentage of number of guesses for {NUM_RUNS} runs");
+
+            // var pie = pltPerc.AddPie(guessPercentage);
+            // pie.SliceLabels = pieLabels;
+            // pie.ShowPercentages = true;
+            // pie.ShowLabels = true;
+            // pie.Explode = true;
+
+            pltPerc.Legend(location: ScottPlot.Alignment.UpperRight);
+            
+            pltPerc.XLabel($"Number of guesses");
+            pltPerc.YLabel($"% of runs solved in");
+            pltPerc.SetAxisLimits(yMin: 0);
+            pltPerc.SaveFig($"bar-percentage-guesses-{runs.Count}-runs.png");
+
+        }
+
+        private static List<ScottPlot.Plot> DoPlotData(List<List<RunData>> runsList) {
+            int maxNumGuesses = 0;
+            var pltDist = new ScottPlot.Plot();
+            var pltPerc = new ScottPlot.Plot();
+
+            List<string> sourceNames = new List<string>();
+            sourceNames.Add("Solution Words");
+            sourceNames.Add("Acceptable Words");
+            sourceNames.Add("All Words");
+            int nameIndex = 0;
+
+            List<L
+            foreach (List<RunData> runs in runsList) {
+                foreach (RunData run in runs) {
+                    if (run.NumGuess > maxNumGuesses) {
+                        maxNumGuesses = run.NumGuess;
+                    }
+                }
+
+
+                double[] guessBuckets = new double[maxNumGuesses];
+                string[] pieLabels = new string[maxNumGuesses];
+                for (int i = 0; i < maxNumGuesses; i++) {
+                    guessBuckets[i] = i + 1;
+                    pieLabels[i] = (i+1).ToString();
+                }
+
+                double[] guesses = new double[maxNumGuesses];
+                foreach (RunData run in runs) {
+                    guesses[run.NumGuess - 1] = guesses[run.NumGuess - 1] + 1;
+                }
+
+                double[] guessPercentage = new double[maxNumGuesses];
+                for (int j = 0; j < maxNumGuesses; j++) {
+                    guessPercentage[j] = (guesses[j] / NUM_RUNS) * 100;
+                }
+            
+                pltDist.AddScatter(guessBuckets, guesses);
+
+                var bar = pltPerc.AddBarGroups(guessPercentage, guessBuckets);
+                pltPerc.XTicks(guessBuckets, pieLabels);
+
+                bar.Label = $"{sourceNames[nameIndex]}";
+                nameIndex++;
+            }
+           
+            List<ScottPlot.Plot> plots = new List<ScottPlot.Plot>();
+            plots.Add(pltDist);
+            plots.Add(pltPerc);
+            return plots;
+
+        }
+        private static void CreateCMAPlot(List<RunData> runs, List<double> cmaData) {
             var plt = new ScottPlot.Plot();
             double[] guesses = new double[runs.Count];
             double[] cmas = new double[cmaData.Count];
@@ -198,14 +320,14 @@ namespace Wordle {
                 runNum[i] = (double)(i+1);
             }
 
-            //plt.AddScatter(runNum, guesses);
+            plt.AddScatter(runNum, guesses);
             plt.AddScatter(runNum, cmas);
 
             plt.Title($"CMA for {NUM_RUNS} runs");
             plt.XLabel("Run Number");
             plt.YLabel($"Number of Guesses");
             
-            plt.SetAxisLimitsY(0, cmas.Max() + (cmas.Max() * 0.25));
+            plt.SetAxisLimitsY(0, guesses.Max() + (guesses.Max() * 0.25));
 
             plt.SaveFig($"cma-for-{cmaData.Count}-runs.png");
         }
