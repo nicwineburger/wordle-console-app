@@ -10,10 +10,11 @@ using System.Runtime.InteropServices;
 
 namespace Wordle {
 
-    public class Program {
-        private static readonly string SOL_PATH = "/Users/nicgw/Desktop/repos/wordle-algo/sol-word-list.txt";
-        private static readonly string ACCEPTABLE_WORD_PATH = "/Users/nicgw/Desktop/repos/wordle-algo/complete-word-list.txt";
-        private static readonly string OUTPUT_PATH = "/Users/nicgw/Desktop/repos/wordle-algo/data.csv";
+    public class Program
+    {
+        private static readonly string SOL_PATH = Directory.GetParent(Environment.CurrentDirectory).Parent.Parent.FullName + "\\sol-word-list.txt";
+        private static readonly string ACCEPTABLE_WORD_PATH = Directory.GetParent(Environment.CurrentDirectory).Parent.Parent.FullName + "\\complete-word-list.txt";
+        private static readonly string OUTPUT_PATH = Directory.GetParent(Environment.CurrentDirectory).Parent.Parent.FullName + "\\data.csv";
         private static int NUM_RUNS;
         private static int RUN_MODE;
 
@@ -237,6 +238,8 @@ namespace Wordle {
             pltDist.Title($"Number of guesses vs number of runs with that # of guesses");
             pltDist.XLabel($"Number of guesses");
             pltDist.YLabel($"Number of runs with that number of guesses");
+            
+            pltDist.Legend(location: ScottPlot.Alignment.UpperRight);
             pltDist.SaveFig($"guesses-bucketed-{runs.Count}-runs.png");
 
             pltPerc.Title($"Percentage of number of guesses for {NUM_RUNS} runs");
@@ -266,8 +269,8 @@ namespace Wordle {
             sourceNames.Add("Acceptable Words");
             sourceNames.Add("All Words");
             int nameIndex = 0;
-
-            List<L
+            List<string> bucketLabels = new List<string>();
+            List<List<double>> barData = new List<List<double>>();
             foreach (List<RunData> runs in runsList) {
                 foreach (RunData run in runs) {
                     if (run.NumGuess > maxNumGuesses) {
@@ -277,10 +280,10 @@ namespace Wordle {
 
 
                 double[] guessBuckets = new double[maxNumGuesses];
-                string[] pieLabels = new string[maxNumGuesses];
+                string[] numGuessLabels = new string[maxNumGuesses];
                 for (int i = 0; i < maxNumGuesses; i++) {
                     guessBuckets[i] = i + 1;
-                    pieLabels[i] = (i+1).ToString();
+                    numGuessLabels[i] = (i+1).ToString();
                 }
 
                 double[] guesses = new double[maxNumGuesses];
@@ -293,14 +296,44 @@ namespace Wordle {
                     guessPercentage[j] = (guesses[j] / NUM_RUNS) * 100;
                 }
             
-                pltDist.AddScatter(guessBuckets, guesses);
+                pltDist.AddScatter(guessBuckets, guesses, label:sourceNames[nameIndex]);
 
-                var bar = pltPerc.AddBarGroups(guessPercentage, guessBuckets);
-                pltPerc.XTicks(guessBuckets, pieLabels);
-
-                bar.Label = $"{sourceNames[nameIndex]}";
+                //pltPerc.XTicks(guessBuckets, pieLabels);
+                barData.Add(guessPercentage.ToList());
+                bucketLabels = numGuessLabels.ToList();
                 nameIndex++;
             }
+            double[][] blankErr = new double[maxNumGuesses][];
+
+            int biggestBar = 0;
+            foreach (List<double> bar in barData)
+            {
+                if (bar.Count > biggestBar)
+                {
+                    biggestBar = bar.Count;
+                }
+            }
+
+            // Expand size of barData lists to make them all the same size
+            for (int i = 0; i < barData.Count; i++)
+            {
+                if (barData[i].Count < biggestBar)
+                {
+                    for (int j = barData[i].Count; j < biggestBar; j++)
+                    {
+                        barData[i].Add(0);
+                    }
+                }
+            }
+
+            List<double[]> barDataArr = new List<double[]>();
+            foreach (List<double> bar in barData)
+            {
+                barDataArr.Add(bar.ToArray());
+            }
+
+            var barGroup = pltPerc.AddBarGroups(bucketLabels.ToArray(), sourceNames.ToArray(), barDataArr.ToArray(), blankErr);
+            //bar.Label = $"{sourceNames[nameIndex]}";
            
             List<ScottPlot.Plot> plots = new List<ScottPlot.Plot>();
             plots.Add(pltDist);
